@@ -7,8 +7,11 @@
 輸入一個日常主題，讓抽象名詞開始工作。聽起來很有道理，至於怎麼做……我們再對齊。
 
 Live Demo: https://rita112025-cpu.github.io/boyangti-generator/
+<<<<<<< HEAD
 
 [Preview](./preview.png)
+=======
+>>>>>>> 3e34779 (fix: set page title, remove injected tooling, correct README)
 
 ### ✨ 功能
 
@@ -20,18 +23,7 @@ Live Demo: https://rita112025-cpu.github.io/boyangti-generator/
 
 ### 🚀 快速開始
 
-```bash
-# 1. 安裝
-npm install
-
-# 2. 本地開發
-npm run dev
-
-# 3. 打包
-npm run build
-```
-
-直接打開 `index.html` 也能跑，這是單檔應用。
+直接打開 `index.html` 即可使用，這是單檔應用，無需安裝。
 
 ### 📁 專案結構
 
@@ -39,8 +31,7 @@ npm run build
 boyangti-generator/
 ├── index.html      # 主程式 (單檔，含所有邏輯)
 ├── README.md
-├── package.json
-└── preview.png     # 可選，放截圖
+└── package.json
 ```
 
 ### 🔧 句型公式
