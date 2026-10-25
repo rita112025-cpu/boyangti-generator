@@ -1,0 +1,30 @@
+{
+  "name": "boyangti-generator",
+  "version": "2.3.0",
+  "description": "把一句話，說成一場宇宙。16種伯洋體句型，支援暗版/亮版的空話製造研究所。政治語言觀察 × 諷刺創作",
+  "type": "module",
+  "homepage": "https://rita112025-cpu.github.io/boyangti-generator/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rita112025-cpu/boyangti-generator.git"
+  },
+  "keywords": [
+    "satire",
+    "taiwan",
+    "rhetoric",
+    "boyangti",
+    "dark-mode",
+    "generator"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite --open",
+    "build": "vite build",
+    "preview": "vite preview",
+    "deploy": "gh-pages -d ."
+  },
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "gh-pages": "^6.1.1"
+  }
+}
