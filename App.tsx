@@ -454,6 +454,152 @@ function DecodePanel() {
   );
 }
 
+const HOLLOW_TERMS = [...new Set([...ABSTRACT_NOUNS, ...VERBS])].sort((a,b)=>b.length-a.length);
+const HOLLOW_RE = new RegExp(`(${HOLLOW_TERMS.join("|")})`, "g");
+const PUNCT = /[\s，。！？、；：,.!?;:]/g;
+
+const HOLLOW_VERDICTS = [
+  { min: 70, label: "內容扎實" },
+  { min: 40, label: "有一點料" },
+  { min: 15, label: "空話密度偏高" },
+  { min: 0, label: "完全是空話" },
+];
+
+function hollowOut(text: string) {
+  const pieces = text.split(HOLLOW_RE);
+  const removed = pieces.filter(p=>HOLLOW_TERMS.includes(p));
+  const remaining = pieces.filter(p=>!HOLLOW_TERMS.includes(p)).join("").replace(PUNCT, "");
+  const totalChars = text.replace(PUNCT, "").length;
+  const solidRatio = totalChars ? Math.round(remaining.length / totalChars * 100) : 0;
+  return { pieces, removed, remaining, solidRatio };
+}
+
+const TRANSLATE_TEMPLATES = [
+  "關於{q}，我們需要先{v}{n}，再談{n}與{n}。",
+  "{q}這件事，本質上是{n}的{n}問題，需要持續{v}。",
+  "與其說{q}，不如說我們正在一個「{n}正在{v}的過程中」。",
+  "{q}的核心不在於答案，而在於{n}如何被{v}、被{v}。",
+];
+
+function translateToBoyangti(input: string): string {
+  const q = input.replace(PUNCT, "").replace(/[嗎呢吧啊]/g, "").trim().slice(0, 30) || "這件事";
+  const fill = (tpl: string) => tpl
+    .replace("{q}", () => q)
+    .replace(/\{n\}/g, () => pick(ABSTRACT_NOUNS))
+    .replace(/\{v\}/g, () => pick(VERBS));
+  return fill(pick(TRANSLATE_TEMPLATES));
+}
+
+function HollowPanel() {
+  const [input, setInput] = useState("");
+  const [result, setResult] = useState<ReturnType<typeof hollowOut> | null>(null);
+  const verdict = result ? HOLLOW_VERDICTS.find(v=> result.solidRatio >= v.min) : null;
+
+  return (
+    <div className="p-5 md:p-7">
+      <div className="mono text-[10px] tracking-[0.14em] font-bold opacity-60 mb-4">INPUT / 待剝除的論述</div>
+      <h2 className="text-[22px] md:text-[26px] font-black mb-4">剝掉空話，還剩什麼？</h2>
+      <textarea
+        value={input}
+        onChange={e=>setInput(e.target.value)}
+        placeholder="貼上一段論述，例如：我們要先搭建框架，持續對齊各方變項。"
+        rows={5}
+        maxLength={400}
+        className="w-full border-[2px] rounded-[14px] px-4 py-3 text-[16px] font-bold focus:outline-none themed-transition"
+        style={{ background: "var(--input-bg)", borderColor: "var(--border)", color: "var(--text)" }}
+      />
+
+      <button
+        disabled={!input.trim()}
+        onClick={()=>setResult(hollowOut(input))}
+        className="mt-6 w-full border-[2px] rounded-[14px] py-4 font-black text-[18px] themed-transition disabled:opacity-40"
+        style={{ background: "var(--text)", color: "var(--bg)", borderColor: "var(--border)" }}
+      >開始剝除</button>
+
+      {result && (
+        <div className="mt-6 space-y-6">
+          <section>
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="font-black text-[14px]">實質內容</h3>
+              <div className="mono text-[12px] font-bold rounded-full px-3 py-1 themed-transition" style={{ background: "var(--text)", color: "var(--bg)" }}>
+                {result.solidRatio}% · {verdict?.label}
+              </div>
+            </div>
+            <div className="h-4 border-[2px] rounded-full overflow-hidden themed-transition" style={{ borderColor: "var(--border)", background: "var(--card-2)" }}>
+              <div className="h-full transition-all" style={{ width: `${result.solidRatio}%`, background: "var(--lime)" }} />
+            </div>
+          </section>
+
+          <section>
+            <h3 className="font-black text-[14px] mb-2">原文（空話會被劃掉）</h3>
+            <p className="text-[15px] font-bold leading-relaxed">
+              {result.pieces.map((p, i)=> HOLLOW_TERMS.includes(p)
+                ? <mark key={i} style={{ background: "var(--lime)", color: "#111", textDecoration: "line-through", borderRadius: 4, padding: "0 2px" }}>{p}</mark>
+                : <span key={i}>{p}</span>
+              )}
+            </p>
+          </section>
+
+          <section>
+            <h3 className="font-black text-[14px] mb-2">剝除後剩下</h3>
+            <div className="border-[2px] rounded-[14px] p-4 font-black text-[16px] themed-transition" style={{ background: "var(--card-2)", borderColor: "var(--border)" }}>
+              {result.remaining || "（什麼都沒剩）"}
+            </div>
+            <div className="mt-2 mono text-[11px] opacity-60">劃掉 {result.removed.length} 個抽象詞</div>
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TranslatePanel() {
+  const [input, setInput] = useState("");
+  const [output, setOutput] = useState("");
+  const origLen = input.replace(PUNCT, "").length;
+  const newLen = output.replace(PUNCT, "").length;
+
+  return (
+    <div className="p-5 md:p-7">
+      <div className="mono text-[10px] tracking-[0.14em] font-bold opacity-60 mb-4">INPUT / 白話原文</div>
+      <h2 className="text-[22px] md:text-[26px] font-black mb-4">一句大白話，翻成伯洋體</h2>
+      <input
+        value={input}
+        onChange={e=>setInput(e.target.value)}
+        placeholder="例如：颱風天可以放假嗎？"
+        maxLength={40}
+        className="w-full border-[2px] rounded-[14px] px-4 py-4 text-[18px] font-bold focus:outline-none themed-transition"
+        style={{ background: "var(--input-bg)", borderColor: "var(--border)", color: "var(--text)" }}
+      />
+
+      <button
+        disabled={!input.trim()}
+        onClick={()=>setOutput(translateToBoyangti(input))}
+        className="mt-6 w-full border-[2px] rounded-[14px] py-4 font-black text-[18px] themed-transition disabled:opacity-40"
+        style={{ background: "var(--text)", color: "var(--bg)", borderColor: "var(--border)" }}
+      >翻譯</button>
+
+      {output && (
+        <div className="mt-6 border-[2px] rounded-[14px] p-5 themed-transition" style={{ background: "var(--card-2)", borderColor: "var(--border)" }}>
+          <div className="flex flex-wrap items-center gap-2 mono text-[11px] mb-4">
+            <span className="border-[2px] rounded-full px-3 py-1 font-bold themed-transition" style={{ background: "var(--card)", borderColor: "var(--border)" }}>字數 {origLen} → {newLen}</span>
+            <span className="border-[2px] rounded-full px-3 py-1 font-bold themed-transition" style={{ background: "var(--lime)", borderColor: "var(--border)", color: "#111" }}>膨脹 {(newLen / Math.max(origLen, 1)).toFixed(1)} 倍</span>
+          </div>
+          <div className="mono text-[10px] font-bold opacity-60 mb-1">白話</div>
+          <div className="text-[15px] font-bold opacity-70 mb-4">{input}</div>
+          <div className="mono text-[10px] font-bold opacity-60 mb-1">伯洋體</div>
+          <div className="font-black text-[18px] leading-[1.7]">{output}</div>
+          <button
+            onClick={()=>setOutput(translateToBoyangti(input))}
+            className="mt-5 border-[2px] rounded-full px-5 py-2 mono text-[12px] font-bold themed-transition"
+            style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--text)" }}
+          >再翻一次</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ----- Component -----
 export default function App() {
   const [topic, setTopic] = useState("颱風假");
@@ -465,7 +611,7 @@ export default function App() {
   const [essay, setEssay] = useState("");
   const [essayMeta, setEssayMeta] = useState<{pattern: string; topic: string; no: number}>({pattern:"結構性框架", topic:"颱風假", no:1});
   const [genCount, setGenCount] = useState(1);
-  const [activeTab, setActiveTab] = useState<"01"|"02"|"03">("01");
+  const [activeTab, setActiveTab] = useState<"01"|"02"|"03"|"04"|"05">("01");
   const [copied, setCopied] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [lastClickedTag, setLastClickedTag] = useState<string | null>(null);
@@ -669,13 +815,15 @@ export default function App() {
         >
           {/* Tabs */}
           <div 
-            className="flex gap-2 p-3 border-b-[2px] themed-transition"
+            className="flex flex-wrap gap-2 p-3 border-b-[2px] themed-transition"
             style={{ background: "var(--card-2)", borderColor: "var(--border)" }}
           >
             {[
               { id:"01", label:"論述生成" },
               { id:"02", label:"回覆模擬" },
               { id:"03", label:"句型拆解" },
+              { id:"04", label:"空話剝除" },
+              { id:"05", label:"白話翻譯" },
             ].map(tab=> (
               <button
                 key={tab.id}
@@ -698,7 +846,7 @@ export default function App() {
             ))}
           </div>
 
-          {activeTab === "02" ? <ReplyPanel /> : activeTab === "03" ? <DecodePanel /> : (
+          {activeTab === "02" ? <ReplyPanel /> : activeTab === "03" ? <DecodePanel /> : activeTab === "04" ? <HollowPanel /> : activeTab === "05" ? <TranslatePanel /> : (
             <div className="p-5 md:p-7">
               {/* Labels */}
               <div className="flex justify-between items-center mono text-[10px] tracking-[0.14em] font-bold opacity-60 mb-4">
