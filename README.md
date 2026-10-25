@@ -6,7 +6,7 @@
 
 輸入一個日常主題，讓抽象名詞開始工作。聽起來很有道理，至於怎麼做……我們再對齊。
 
-Live Demo: https://your-name.github.io/boyangti-generator/
+Live Demo: https://rita112025-cpu.github.io/boyangti-generator/
 
 [Preview](./preview.png)
 
