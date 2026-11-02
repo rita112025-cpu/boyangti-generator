@@ -465,35 +465,80 @@ const HOLLOW_VERDICTS = [
   { min: 0, label: "完全是空話" },
 ];
 
+const FRAGMENT_SPLIT = /[，。！？、；：,.!?;:\s]+/;
+
 function hollowOut(text: string) {
-  const pieces = text.split(HOLLOW_RE);
+  const paragraphs = text.split(/\n+/).map(p=>p.trim()).filter(Boolean).map(p=>p.split(HOLLOW_RE));
+  const pieces = paragraphs.flat();
   const removed = pieces.filter(p=>HOLLOW_TERMS.includes(p));
-  const remaining = pieces.filter(p=>!HOLLOW_TERMS.includes(p)).join("").replace(PUNCT, "");
+  const fragments = pieces
+    .filter(p=>p && !HOLLOW_TERMS.includes(p))
+    .flatMap(p=>p.split(FRAGMENT_SPLIT))
+    .filter(Boolean);
   const totalChars = text.replace(PUNCT, "").length;
-  const solidRatio = totalChars ? Math.round(remaining.length / totalChars * 100) : 0;
-  return { pieces, removed, remaining, solidRatio };
+  const solidRatio = totalChars ? Math.round(fragments.join("").length / totalChars * 100) : 0;
+  return { paragraphs, removed, fragments, solidRatio };
 }
+
+const TRANSLATE_STYLES = ["標準", "加強", "極致"] as const;
+type TranslateStyle = typeof TRANSLATE_STYLES[number];
 
 const TRANSLATE_TEMPLATES = [
   "關於{q}，我們需要先{v}{n}，再談{n}與{n}。",
   "{q}這件事，本質上是{n}的{n}問題，需要持續{v}。",
-  "與其說{q}，不如說我們正在一個「{n}正在{v}的過程中」。",
+  "與其說{q}，不如說我們正在經歷一場{n}的{n}。",
   "{q}的核心不在於答案，而在於{n}如何被{v}、被{v}。",
+  "談{q}，要先{v}{n}，讓{n}可以在{n}之中被看見。",
+  "{q}牽涉的是{n}與{n}之間的{n}，我們要{v}的是整個{n}。",
+  "如果只問{q}，可能還不足以涵蓋整個{n}問題。",
+  "{q}的{n}，要在{n}與{n}之間持續被{v}。",
 ];
 
-function translateToBoyangti(input: string): string {
+const TRANSLATE_EXTRAS = [
+  "這本身就是一種{n}的{n}。",
+  "而這一切，最終都要回到{n}本身，回到{n}如何被{v}的提問。",
+  "所以{n}的{n}，持續在{n}之間被{v}。",
+];
+
+function translateToBoyangti(input: string, style: TranslateStyle): string {
   const q = input.replace(PUNCT, "").replace(/[嗎呢吧啊]/g, "").trim().slice(0, 30) || "這件事";
   const fill = (tpl: string) => tpl
     .replace("{q}", () => q)
     .replace(/\{n\}/g, () => pick(ABSTRACT_NOUNS))
     .replace(/\{v\}/g, () => pick(VERBS));
-  return fill(pick(TRANSLATE_TEMPLATES));
+  const sentences = [fill(pick(TRANSLATE_TEMPLATES))];
+  if (style !== "標準") sentences.push(fill(pick(TRANSLATE_EXTRAS)));
+  if (style === "極致") sentences.push(fill(pick(TRANSLATE_EXTRAS)));
+  return sentences.join("");
+}
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const el = document.createElement("textarea");
+    el.value = text;
+    document.body.appendChild(el);
+    el.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(el);
+    return ok;
+  }
 }
 
 function HollowPanel() {
   const [input, setInput] = useState("");
   const [result, setResult] = useState<ReturnType<typeof hollowOut> | null>(null);
+  const [copyMsg, setCopyMsg] = useState("");
   const verdict = result ? HOLLOW_VERDICTS.find(v=> result.solidRatio >= v.min) : null;
+
+  const handleCopy = async () => {
+    if (!result) return;
+    const ok = await copyToClipboard(result.fragments.join("／"));
+    setCopyMsg(ok ? "已複製 ✓" : "複製失敗");
+    setTimeout(()=>setCopyMsg(""), 1500);
+  };
 
   return (
     <div className="p-5 md:p-7">
@@ -520,32 +565,50 @@ function HollowPanel() {
         <div className="mt-6 space-y-6">
           <section>
             <div className="flex justify-between items-center mb-2">
-              <h3 className="font-black text-[14px]">實質內容</h3>
+              <h3 className="font-black text-[14px]">實質內容（估算）</h3>
               <div className="mono text-[12px] font-bold rounded-full px-3 py-1 themed-transition" style={{ background: "var(--text)", color: "var(--bg)" }}>
-                {result.solidRatio}% · {verdict?.label}
+                約 {result.solidRatio}% · {verdict?.label}
               </div>
             </div>
             <div className="h-4 border-[2px] rounded-full overflow-hidden themed-transition" style={{ borderColor: "var(--border)", background: "var(--card-2)" }}>
               <div className="h-full transition-all" style={{ width: `${result.solidRatio}%`, background: "var(--lime)" }} />
             </div>
+            <div className="mt-2 mono text-[10px] opacity-60">估算值：依抽象詞的字數比例推算，不是精確指標。</div>
           </section>
 
           <section>
             <h3 className="font-black text-[14px] mb-2">原文（空話會被劃掉）</h3>
-            <p className="text-[15px] font-bold leading-relaxed">
-              {result.pieces.map((p, i)=> HOLLOW_TERMS.includes(p)
-                ? <mark key={i} style={{ background: "var(--lime)", color: "#111", textDecoration: "line-through", borderRadius: 4, padding: "0 2px" }}>{p}</mark>
-                : <span key={i}>{p}</span>
-              )}
-            </p>
+            {result.paragraphs.map((pieces, i)=>(
+              <p key={i} className="mb-3 last:mb-0 text-[15px] font-bold leading-relaxed">
+                {pieces.map((p, j)=> HOLLOW_TERMS.includes(p)
+                  ? <mark key={j} style={{ background: "var(--lime)", color: "#111", textDecoration: "line-through", borderRadius: 4, padding: "0 2px" }}>{p}</mark>
+                  : <span key={j}>{p}</span>
+                )}
+              </p>
+            ))}
           </section>
 
           <section>
             <h3 className="font-black text-[14px] mb-2">剝除後剩下</h3>
-            <div className="border-[2px] rounded-[14px] p-4 font-black text-[16px] themed-transition" style={{ background: "var(--card-2)", borderColor: "var(--border)" }}>
-              {result.remaining || "（什麼都沒剩）"}
+            {result.fragments.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {result.fragments.map((f, i)=>(
+                  <span key={i} className="border-[2px] rounded-full px-3 py-1 font-black text-[14px] themed-transition" style={{ background: "var(--card-2)", borderColor: "var(--border)" }}>{f}</span>
+                ))}
+              </div>
+            ) : (
+              <div className="font-black text-[16px]">（什麼都沒剩）</div>
+            )}
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <span className="mono text-[11px] opacity-60">劃掉 {result.removed.length} 個抽象詞</span>
+              {result.fragments.length > 0 && (
+                <button
+                  onClick={handleCopy}
+                  className="mono text-[12px] font-bold border-[2px] rounded-full px-4 py-1.5 themed-transition active:scale-[0.97]"
+                  style={{ background: "var(--lime)", borderColor: "var(--border)", color: "#111" }}
+                >{copyMsg || "複製剩下的內容"}</button>
+              )}
             </div>
-            <div className="mt-2 mono text-[11px] opacity-60">劃掉 {result.removed.length} 個抽象詞</div>
           </section>
         </div>
       )}
@@ -555,9 +618,23 @@ function HollowPanel() {
 
 function TranslatePanel() {
   const [input, setInput] = useState("");
+  const [style, setStyle] = useState<TranslateStyle>("標準");
   const [output, setOutput] = useState("");
+  const [outputStyle, setOutputStyle] = useState<TranslateStyle>("標準");
+  const [copyMsg, setCopyMsg] = useState("");
   const origLen = input.replace(PUNCT, "").length;
   const newLen = output.replace(PUNCT, "").length;
+
+  const run = () => {
+    setOutput(translateToBoyangti(input, style));
+    setOutputStyle(style);
+  };
+
+  const handleCopy = async () => {
+    const ok = await copyToClipboard(output);
+    setCopyMsg(ok ? "已複製 ✓" : "複製失敗");
+    setTimeout(()=>setCopyMsg(""), 1500);
+  };
 
   return (
     <div className="p-5 md:p-7">
@@ -572,9 +649,27 @@ function TranslatePanel() {
         style={{ background: "var(--input-bg)", borderColor: "var(--border)", color: "var(--text)" }}
       />
 
+      <div className="mt-6">
+        <h3 className="font-black text-[14px] mb-3">選風格</h3>
+        <div className="flex flex-wrap gap-2">
+          {TRANSLATE_STYLES.map(s=>(
+            <button
+              key={s}
+              onClick={()=>setStyle(s)}
+              className="mono text-[12px] font-bold border-[2px] rounded-full px-4 py-1.5 themed-transition"
+              style={{
+                background: style===s ? "var(--lime)" : "var(--card)",
+                borderColor: "var(--border)",
+                color: style===s ? "#111" : "var(--text)",
+              }}
+            >{s}版</button>
+          ))}
+        </div>
+      </div>
+
       <button
         disabled={!input.trim()}
-        onClick={()=>setOutput(translateToBoyangti(input))}
+        onClick={run}
         className="mt-6 w-full border-[2px] rounded-[14px] py-4 font-black text-[18px] themed-transition disabled:opacity-40"
         style={{ background: "var(--text)", color: "var(--bg)", borderColor: "var(--border)" }}
       >翻譯</button>
@@ -584,16 +679,24 @@ function TranslatePanel() {
           <div className="flex flex-wrap items-center gap-2 mono text-[11px] mb-4">
             <span className="border-[2px] rounded-full px-3 py-1 font-bold themed-transition" style={{ background: "var(--card)", borderColor: "var(--border)" }}>字數 {origLen} → {newLen}</span>
             <span className="border-[2px] rounded-full px-3 py-1 font-bold themed-transition" style={{ background: "var(--lime)", borderColor: "var(--border)", color: "#111" }}>膨脹 {(newLen / Math.max(origLen, 1)).toFixed(1)} 倍</span>
+            <span className="border-[2px] rounded-full px-3 py-1 font-bold themed-transition" style={{ background: "var(--card)", borderColor: "var(--border)" }}>{outputStyle}版</span>
           </div>
           <div className="mono text-[10px] font-bold opacity-60 mb-1">白話</div>
           <div className="text-[15px] font-bold opacity-70 mb-4">{input}</div>
           <div className="mono text-[10px] font-bold opacity-60 mb-1">伯洋體</div>
           <div className="font-black text-[18px] leading-[1.7]">{output}</div>
-          <button
-            onClick={()=>setOutput(translateToBoyangti(input))}
-            className="mt-5 border-[2px] rounded-full px-5 py-2 mono text-[12px] font-bold themed-transition"
-            style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--text)" }}
-          >再翻一次</button>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button
+              onClick={run}
+              className="border-[2px] rounded-full px-5 py-2 mono text-[12px] font-bold themed-transition"
+              style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--text)" }}
+            >再翻一次</button>
+            <button
+              onClick={handleCopy}
+              className="border-[2px] rounded-full px-5 py-2 mono text-[12px] font-bold themed-transition"
+              style={{ background: "var(--lime)", borderColor: "var(--border)", color: "#111" }}
+            >{copyMsg || "複製"}</button>
+          </div>
         </div>
       )}
     </div>
