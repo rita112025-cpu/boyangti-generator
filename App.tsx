@@ -60,7 +60,7 @@ function enhanceForAbstraction(text: string, level: number): string {
   ];
   let t = text;
   if (Math.random() < 0.6) {
-    t += `，這本身就是一種${pick(heavy)}的過程。`;
+    t = `${t.replace(/。$/, "")}，這本身就是一種${pick(heavy)}的過程。`;
   }
   if (Math.random() < 0.5) {
     t = t.replace(/。/g, `，並在${pick(ABSTRACT_NOUNS)}與${pick(ABSTRACT_NOUNS)}之間持續被${pick(VERBS)}。`);
@@ -703,6 +703,22 @@ function TranslatePanel() {
   );
 }
 
+function readStoredTheme(): string | null {
+  try {
+    return localStorage.getItem("boyangti-theme");
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredTheme(theme: string): void {
+  try {
+    localStorage.setItem("boyangti-theme", theme);
+  } catch {
+    // storage unavailable: the theme still applies for this visit
+  }
+}
+
 // ----- Component -----
 export default function App() {
   const [topic, setTopic] = useState("颱風假");
@@ -727,7 +743,7 @@ export default function App() {
 
   // Theme init: localStorage + prefers-color-scheme
   useEffect(()=>{
-    const saved = localStorage.getItem("boyangti-theme");
+    const saved = readStoredTheme();
     let init: "light"|"dark" = "light";
     if (saved === "dark" || saved === "light") {
       init = saved as "light"|"dark";
@@ -740,7 +756,7 @@ export default function App() {
 
   useEffect(()=>{
     document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem("boyangti-theme", theme);
+    writeStoredTheme(theme);
   }, [theme]);
 
   const toggleTheme = () => {
@@ -763,13 +779,11 @@ export default function App() {
     setEssay(initial);
   }, []);
 
-  const handleCopy = () => {
-    const textArea = document.createElement("textarea");
-    textArea.value = essay;
-    document.body.appendChild(textArea);
-    textArea.select();
-    try { document.execCommand("copy"); setCopied(true); setTimeout(()=>setCopied(false), 1500); } catch {}
-    document.body.removeChild(textArea);
+  const handleCopy = async () => {
+    if (await copyToClipboard(essay)) {
+      setCopied(true);
+      setTimeout(()=>setCopied(false), 1500);
+    }
   };
 
   const handleRandom = () => {
