@@ -719,6 +719,193 @@ function writeStoredTheme(theme: string): void {
   }
 }
 
+const JINGJING_WORDS: [string, string][] = [
+  ["年輕世代", "younger generation"],
+  ["我會說", "I would say"],
+  ["我覺得", "I think"],
+  ["基本上", "basically"],
+  ["有道理", "make sense"],
+  ["透明度", "transparency"],
+  ["其實", "actually"],
+  ["總之", "anyway"],
+  ["因為", "because"],
+  ["所以", "so"],
+  ["但是", "but"],
+  ["真的", "really"],
+  ["會議", "meeting"],
+  ["開會", "meeting"],
+  ["截止", "deadline"],
+  ["案子", "case"],
+  ["確認", "check"],
+  ["跟進", "follow"],
+  ["專注", "focus"],
+  ["重點", "point"],
+  ["程度", "level"],
+  ["更新", "update"],
+  ["計畫", "plan"],
+  ["安排", "schedule"],
+  ["討論", "discuss"],
+  ["取消", "cancel"],
+  ["延後", "delay"],
+  ["溝通", "communicate"],
+  ["輕鬆", "light"],
+  ["搞定", "work out"],
+  ["很忙", "很busy"],
+  ["壓力", "pressure"],
+  ["時機", "timing"],
+  ["選項", "option"],
+  ["機會", "chance"],
+  ["團隊", "team"],
+  ["專案", "project"],
+  ["預算", "budget"],
+  ["方向", "direction"],
+  ["細節", "detail"],
+  ["目標", "goal"],
+  ["效率", "efficiency"],
+  ["框架", "framework"],
+  ["結構", "structure"],
+  ["風險", "risk"],
+  ["資訊", "information"],
+  ["韌性", "resilience"],
+  ["治理", "governance"],
+  ["機制", "mechanism"],
+  ["系統", "system"],
+  ["願景", "vision"],
+  ["共識", "consensus"],
+  ["標準", "standard"],
+  ["對齊", "align"],
+  ["整合", "integrate"],
+  ["價值", "value"],
+];
+
+const JINGJING_LEVELS = ["輕度", "中度", "重度"] as const;
+type JingjingLevel = typeof JINGJING_LEVELS[number];
+const JINGJING_RATE: Record<JingjingLevel, number> = { 輕度: 0.35, 中度: 0.7, 重度: 1 };
+const JINGJING_MAP = new Map(JINGJING_WORDS);
+const JINGJING_RE = new RegExp(
+  `(${JINGJING_WORDS.map(([zh])=>zh).sort((a,b)=>b.length-a.length).join("|")})`,
+  "g"
+);
+
+type JingjingSegment = { text: string; en: boolean };
+
+function toJingjing(input: string, level: JingjingLevel): JingjingSegment[] {
+  const segments: JingjingSegment[] = [];
+  const push = (text: string, en: boolean) => {
+    const prev = segments[segments.length - 1];
+    if (prev && /[A-Za-z]$/.test(prev.text) && /^[A-Za-z]/.test(text)) segments.push({ text: " ", en: false });
+    segments.push({ text, en });
+  };
+
+  for (const part of input.trim().split(JINGJING_RE)) {
+    if (!part) continue;
+    const en = JINGJING_MAP.get(part);
+    if (en && Math.random() < JINGJING_RATE[level]) push(en, true);
+    else push(part, false);
+  }
+
+  if (level === "重度" && segments.length > 0) {
+    const last = segments[segments.length - 1];
+    if (!last.en) last.text = last.text.replace(/[。！？.!?]+$/, "");
+    push("，", false);
+    push("you know", true);
+    push("？", false);
+  }
+  return segments;
+}
+
+function JingjingPanel() {
+  const [input, setInput] = useState("");
+  const [level, setLevel] = useState<JingjingLevel>("中度");
+  const [segments, setSegments] = useState<JingjingSegment[] | null>(null);
+  const [outputLevel, setOutputLevel] = useState<JingjingLevel>("中度");
+  const [copyMsg, setCopyMsg] = useState("");
+  const output = segments ? segments.map(s=>s.text).join("") : "";
+  const englishCount = segments ? segments.filter(s=>s.en).length : 0;
+
+  const run = () => {
+    setSegments(toJingjing(input, level));
+    setOutputLevel(level);
+  };
+
+  const handleCopy = async () => {
+    const ok = await copyToClipboard(output);
+    setCopyMsg(ok ? "已複製 ✓" : "複製失敗");
+    setTimeout(()=>setCopyMsg(""), 1500);
+  };
+
+  return (
+    <div className="p-5 md:p-7">
+      <div className="mono text-[10px] tracking-[0.14em] font-bold opacity-60 mb-4">INPUT / 中文原文</div>
+      <h2 className="text-[22px] md:text-[26px] font-black mb-4">一句中文，加點 English</h2>
+      <textarea
+        value={input}
+        onChange={e=>setInput(e.target.value)}
+        placeholder="例如：這個案子我們開會討論一下，因為年輕世代真的很忙，所以要先確認方向。"
+        rows={4}
+        maxLength={200}
+        className="w-full border-[2px] rounded-[14px] px-4 py-3 text-[16px] font-bold focus:outline-none themed-transition"
+        style={{ background: "var(--input-bg)", borderColor: "var(--border)", color: "var(--text)" }}
+      />
+
+      <div className="mt-6">
+        <h3 className="font-black text-[14px] mb-3">夾雜程度</h3>
+        <div className="flex flex-wrap gap-2">
+          {JINGJING_LEVELS.map(l=>(
+            <button
+              key={l}
+              onClick={()=>setLevel(l)}
+              className="mono text-[12px] font-bold border-[2px] rounded-full px-4 py-1.5 themed-transition"
+              style={{
+                background: level===l ? "var(--lime)" : "var(--card)",
+                borderColor: "var(--border)",
+                color: level===l ? "#111" : "var(--text)",
+              }}
+            >{l}</button>
+          ))}
+        </div>
+      </div>
+
+      <button
+        disabled={!input.trim()}
+        onClick={run}
+        className="mt-6 w-full border-[2px] rounded-[14px] py-4 font-black text-[18px] themed-transition disabled:opacity-40"
+        style={{ background: "var(--text)", color: "var(--bg)", borderColor: "var(--border)" }}
+      >轉成晶晶體</button>
+
+      {segments && (
+        <div className="mt-6 border-[2px] rounded-[14px] p-5 themed-transition" style={{ background: "var(--card-2)", borderColor: "var(--border)" }}>
+          <div className="flex flex-wrap items-center gap-2 mono text-[11px] mb-4">
+            <span className="border-[2px] rounded-full px-3 py-1 font-bold themed-transition" style={{ background: "var(--lime)", borderColor: "var(--border)", color: "#111" }}>夾雜 {englishCount} 個英文詞</span>
+            <span className="border-[2px] rounded-full px-3 py-1 font-bold themed-transition" style={{ background: "var(--card)", borderColor: "var(--border)" }}>{outputLevel}</span>
+          </div>
+          <div className="font-black text-[18px] leading-[1.7]">
+            {segments.map((s, i)=> s.en
+              ? <mark key={i} style={{ background: "var(--lime)", color: "#111", borderRadius: 4, padding: "0 2px" }}>{s.text}</mark>
+              : <span key={i}>{s.text}</span>
+            )}
+          </div>
+          {englishCount === 0 && (
+            <div className="mt-3 mono text-[11px] opacity-60">這段話裡沒有可以替換的詞，試試加入「開會、確認、因為、所以」這類常見詞。</div>
+          )}
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button
+              onClick={run}
+              className="border-[2px] rounded-full px-5 py-2 mono text-[12px] font-bold themed-transition"
+              style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--text)" }}
+            >再轉一次</button>
+            <button
+              onClick={handleCopy}
+              className="border-[2px] rounded-full px-5 py-2 mono text-[12px] font-bold themed-transition"
+              style={{ background: "var(--lime)", borderColor: "var(--border)", color: "#111" }}
+            >{copyMsg || "複製"}</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ----- Component -----
 export default function App() {
   const [topic, setTopic] = useState("颱風假");
@@ -730,7 +917,7 @@ export default function App() {
   const [essay, setEssay] = useState("");
   const [essayMeta, setEssayMeta] = useState<{pattern: string; topic: string; no: number}>({pattern:"結構性框架", topic:"颱風假", no:1});
   const [genCount, setGenCount] = useState(1);
-  const [activeTab, setActiveTab] = useState<"01"|"02"|"03"|"04"|"05">("01");
+  const [activeTab, setActiveTab] = useState<"01"|"02"|"03"|"04"|"05"|"06">("01");
   const [copied, setCopied] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [lastClickedTag, setLastClickedTag] = useState<string | null>(null);
@@ -941,6 +1128,7 @@ export default function App() {
               { id:"03", label:"句型拆解" },
               { id:"04", label:"空話剝除" },
               { id:"05", label:"白話翻譯" },
+              { id:"06", label:"晶晶體" },
             ].map(tab=> (
               <button
                 key={tab.id}
@@ -963,7 +1151,7 @@ export default function App() {
             ))}
           </div>
 
-          {activeTab === "02" ? <ReplyPanel /> : activeTab === "03" ? <DecodePanel /> : activeTab === "04" ? <HollowPanel /> : activeTab === "05" ? <TranslatePanel /> : (
+          {activeTab === "02" ? <ReplyPanel /> : activeTab === "03" ? <DecodePanel /> : activeTab === "04" ? <HollowPanel /> : activeTab === "05" ? <TranslatePanel /> : activeTab === "06" ? <JingjingPanel /> : (
             <div className="p-5 md:p-7">
               {/* Labels */}
               <div className="flex justify-between items-center mono text-[10px] tracking-[0.14em] font-bold opacity-60 mb-4">
