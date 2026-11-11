@@ -1,7 +1,7 @@
 {
   "name": "boyangti-generator",
   "version": "2.3.0",
-  "description": "把一句話，說成一場宇宙。16種伯洋體句型，支援暗版/亮版的空話製造研究所。政治語言觀察 × 諷刺創作",
+  "description": "把一句話，說成一場宇宙。18種伯洋體句型，支援暗版/亮版的空話製造研究所。政治語言觀察 × 諷刺創作",
   "type": "module",
   "homepage": "https://rita112025-cpu.github.io/boyangti-generator/",
   "repository": {
