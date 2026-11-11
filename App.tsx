@@ -25,11 +25,13 @@ const PATTERNS: Pattern[] = [
   { id: "diverse", name: "多元共榮體", desc: "多元、共融、共好、共榮", formula: "多元盤點 → 共融對齊 → 共榮願景" },
   { id: "value", name: "價值疊加體", desc: "疊加價值，創造新局", formula: "價值盤點 → 疊加建構 → 新局創造" },
   { id: "depth", name: "戰略縱深體", desc: "拉出縱深，建構不對稱", formula: "拉出縱深 → 建構不對稱 → 系統對接" },
+  { id: "recall", name: "罷免檢討體", desc: "票數不如預期，但民主贏了", formula: "結果出爐 → 重新定義輸贏 → 感謝公民 → 力量沒有消失" },
+  { id: "warm", name: "暖男營業體", desc: "選舉到了，突然很會噓寒問暖", formula: "噓寒問暖 → 生活小事 → 硬接政見 → 溫暖收尾" },
 ];
 
 const ABSTRACT_NOUNS = ["框架","結構","風險","資訊","透明度","韌性","治理","機制","變項","依據","廊帶","節點","盤點","對齊","疊加","縱深","系統","脈絡","願景","論述","節奏","共識","標準","介面"];
 const VERBS = ["涵蓋","對接","串聯","盤點","收斂","對齊","拆解","建構","疊加","滾動","修正","加值","賦能","整合"];
-const QUICK_TAGS = ["颱風假","健身","城市更新","買咖啡","加班","房租","點開率"];
+const QUICK_TAGS = ["颱風假","大罷免","健身","城市更新","買咖啡","加班","房租","點開率"];
 
 const ABSTRACTION_LABELS = [
   { max: 20, label: "還聽得懂" },
@@ -217,6 +219,24 @@ function generateEssay(topic: string, patternId: string, abstraction: number, cu
         `所以${t}的重點，從來不是${t}，而是縱深之後，我們有沒有更完整的${rN()}，有沒有辦法在${rN()}中看見${rN()}。`
       ];
       break;
+    case "recall":
+      paras = [
+        `關於${t}的結果，我想先說，數字不是全部。`,
+        `票數雖然不如預期，但這一次，我們看見了${rN()}，也看見了${rN()}。`,
+        `與其說輸了，不如說我們完成了一次大規模的${rN()}${rV()}。我們要面對的是事情，不是投下不同選擇的人。`,
+        `這股力量沒有消失，它只是換了一個形式，繼續在${rN()}與${rN()}之間被${rV()}。`,
+        `所以我們會檢討，會沉澱，然後在下一個${rN()}，重新出發。`
+      ];
+      break;
+    case "warm":
+      paras = [
+        `大家最近還好嗎？談${t}之前，我想先關心一下，你今天有沒有好好吃飯。`,
+        `我最近換了個髮型，早上買了一杯${pick(["豆漿","熱美式","無糖綠","米漿"])}，突然覺得，生活的${rN()}其實藏在這些小地方。`,
+        `所以談${t}，我們不只要談${rN()}，也要談溫度，談每一個人的${rN()}有沒有被好好接住。`,
+        `我會一直在這裡，陪大家把${t}的${rN()}慢慢${rV()}好。`,
+        `天氣變涼了，記得多喝水、多加件外套。${t}的事情，我們一起扛。`
+      ];
+      break;
     default:
       paras = [`討論${t}，我們需要一個${rN()}的框架。`];
   }
@@ -254,6 +274,8 @@ const PATTERN_HINTS: Record<string, string[]> = {
   diverse: ["多元","共榮","共融"],
   value: ["價值","疊加","新局"],
   depth: ["縱深","不對稱"],
+  recall: ["罷免","不如預期","沒有消失","沉澱"],
+  warm: ["吃飯","多喝水","溫度","陪大家","接住"],
 };
 
 const REPLY_OPENERS = [
@@ -1232,7 +1254,7 @@ export default function App() {
               <div className="mt-8">
                 <div className="flex items-baseline justify-between">
                   <h3 className="font-black text-[16px]">選一種伯洋體句型</h3>
-                  <span className="mono text-[11px] opacity-60">16種不同的繞法</span>
+                  <span className="mono text-[11px] opacity-60">{PATTERNS.length}種不同的繞法</span>
                 </div>
 
                 <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1268,7 +1290,7 @@ export default function App() {
                     color: "var(--text)",
                   }}
                 >
-                  {expanded ? "收起句型 −12" : "更多句型 +12"}
+                  {expanded ? `收起句型 −${PATTERNS.length - 4}` : `更多句型 +${PATTERNS.length - 4}`}
                 </button>
 
                 {/* Formula */}
