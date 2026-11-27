@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useLayoutEffect, useMemo } from "react";
 
 // ----- Types & Data -----
 type Pattern = {
@@ -65,12 +65,14 @@ function enhanceForAbstraction(text: string, level: number): string {
     t = `${t.replace(/。$/, "")}，這本身就是一種${pick(heavy)}的過程。`;
   }
   if (Math.random() < 0.5) {
-    t = t.replace(/。/g, `，並在${pick(ABSTRACT_NOUNS)}與${pick(ABSTRACT_NOUNS)}之間持續被${pick(VERBS)}。`);
+    t = t.replace(/。$/, `，並在${pick(ABSTRACT_NOUNS)}與${pick(ABSTRACT_NOUNS)}之間持續被${pick(VERBS)}。`);
   }
   return t;
 }
 
 type CustomABCD = { A:string; B:string; C:string; D:string };
+const DEFAULT_ABCD: CustomABCD = { A:"基礎認知", B:"風險評估", C:"治理機制", D:"社會韌性" };
+type EssayMeta = { pattern: string; topic: string; abstraction: number; no: number };
 
 function generateEssay(topic: string, patternId: string, abstraction: number, custom: CustomABCD): string {
   const rN = () => pick(ABSTRACT_NOUNS);
@@ -733,7 +735,15 @@ function readStoredTheme(): string | null {
   }
 }
 
-function writeStoredTheme(theme: string): void {
+type Theme = "light" | "dark";
+
+function getInitialTheme(): Theme {
+  const saved = readStoredTheme();
+  if (saved === "dark" || saved === "light") return saved;
+  return typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function writeStoredTheme(theme: Theme): void {
   try {
     localStorage.setItem("boyangti-theme", theme);
   } catch {
@@ -934,42 +944,30 @@ export default function App() {
   const [selectedPattern, setSelectedPattern] = useState<string>("frame");
   const [abstraction, setAbstraction] = useState(70);
   const [expanded, setExpanded] = useState(false);
-  const [customABCD, setCustomABCD] = useState<CustomABCD>({ A:"基礎認知", B:"風險評估", C:"治理機制", D:"社會韌性" });
+  const [customABCD, setCustomABCD] = useState<CustomABCD>(DEFAULT_ABCD);
   const [showCustom, setShowCustom] = useState(false);
-  const [essay, setEssay] = useState("");
-  const [essayMeta, setEssayMeta] = useState<{pattern: string; topic: string; no: number}>({pattern:"結構性框架", topic:"颱風假", no:1});
-  const [genCount, setGenCount] = useState(1);
+  const [essay, setEssay] = useState(()=> generateEssay("颱風假", "frame", 70, DEFAULT_ABCD));
+  const [essayMeta, setEssayMeta] = useState<EssayMeta>({ pattern:"結構性框架", topic:"颱風假", abstraction:70, no:1 });
   const [activeTab, setActiveTab] = useState<"01"|"02"|"03"|"04"|"05"|"06">("01");
   const [copied, setCopied] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
-  const [lastClickedTag, setLastClickedTag] = useState<string | null>(null);
-  const [theme, setTheme] = useState<"light"|"dark">("light");
+  const [theme, setTheme] = useState<Theme>(getInitialTheme);
 
   const visiblePatterns = useMemo(()=> expanded ? PATTERNS : PATTERNS.slice(0,4), [expanded]);
 
   const currentPatternObj = PATTERNS.find(p=>p.id===selectedPattern) || PATTERNS[0];
   const abstractionLabel = ABSTRACTION_LABELS.find(a=> abstraction <= a.max)?.label || "平行宇宙";
 
-  // Theme init: localStorage + prefers-color-scheme
-  useEffect(()=>{
-    const saved = readStoredTheme();
-    let init: "light"|"dark" = "light";
-    if (saved === "dark" || saved === "light") {
-      init = saved as "light"|"dark";
-    } else if (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-      init = "dark";
-    }
-    setTheme(init);
-    document.documentElement.setAttribute("data-theme", init);
-  }, []);
-
-  useEffect(()=>{
+  // Layout effect applies the theme before the first paint, avoiding a light-mode flash
+  useLayoutEffect(()=>{
     document.documentElement.setAttribute("data-theme", theme);
-    writeStoredTheme(theme);
   }, [theme]);
 
+  // Only persist an explicit choice, so users without one keep following the system setting
   const toggleTheme = () => {
-    setTheme(prev => prev === "light" ? "dark" : "light");
+    const next: Theme = theme === "light" ? "dark" : "light";
+    setTheme(next);
+    writeStoredTheme(next);
   };
 
   const handleGenerate = (overrideTopic?: string, overridePattern?: string, overrideAbstraction?: number) => {
@@ -979,14 +977,8 @@ export default function App() {
     const result = generateEssay(t, p, abs, customABCD);
     setEssay(result);
     const patName = PATTERNS.find(x=>x.id===p)?.name || "";
-    setEssayMeta({ pattern: patName, topic: t, no: genCount });
-    setGenCount(c=>c+1);
+    setEssayMeta(prev => ({ pattern: patName, topic: t, abstraction: abs, no: prev.no + 1 }));
   };
-
-  useEffect(()=> {
-    const initial = generateEssay("颱風假", "frame", 70, { A:"基礎認知", B:"風險評估", C:"治理機制", D:"社會韌性" });
-    setEssay(initial);
-  }, []);
 
   const handleCopy = async () => {
     if (await copyToClipboard(essay)) {
@@ -1216,36 +1208,18 @@ export default function App() {
                 {QUICK_TAGS.map(tag=>(
                   <button
                     key={tag}
-                    onPointerDown={(e)=>{
-                      const btn = e.currentTarget as HTMLButtonElement;
-                      btn.setAttribute('data-pointer','1');
-                      btn.textContent = `${tag} ✓`;
-                      try { window.location.hash = `tag-${tag}-${Date.now()}`; } catch {}
-                    }}
-                    onClick={(e)=>{
-                      const btn = e.currentTarget as HTMLButtonElement;
-                      btn.setAttribute('data-clicked', String(Date.now()));
-                      btn.style.transform = 'scale(0.95)';
-                      try { window.location.hash = `tag-${tag}-${Date.now()}`; } catch {}
-                      setLastClickedTag(tag);
-                      const inputEl = document.getElementById('topic-input') as HTMLInputElement | null;
-                      if (inputEl) {
-                        inputEl.value = tag;
-                        inputEl.setAttribute('data-filled', tag);
-                      }
+                    onClick={()=>{
                       setTopic(tag);
                       handleGenerate(tag);
-                      window.scrollBy(0, 1);
-                      setTimeout(()=>window.scrollBy(0,-1), 50);
                     }}
-                    className="mono text-[12px] font-bold border-[2px] rounded-full px-3 py-1.5 transition themed-transition"
+                    className="mono text-[12px] font-bold border-[2px] rounded-full px-3 py-1.5 transition themed-transition active:scale-[0.95]"
                     style={{
-                      background: (topic===tag || lastClickedTag===tag) ? "var(--text)" : "var(--card)",
-                      color: (topic===tag || lastClickedTag===tag) ? (isDark ? "var(--lime)" : "var(--lime)") : "var(--text)",
+                      background: topic===tag ? "var(--text)" : "var(--card)",
+                      color: topic===tag ? "var(--lime)" : "var(--text)",
                       borderColor: "var(--border)",
                     }}
                   >
-                    {lastClickedTag===tag ? `${tag} ✓` : tag}
+                    {topic===tag ? `${tag} ✓` : tag}
                   </button>
                 ))}
               </div>
@@ -1451,9 +1425,9 @@ export default function App() {
             >
               <div className="mono text-[10px] font-bold opacity-60 mb-2">生成參數</div>
               <div className="flex flex-wrap gap-2 mono text-[11px]">
-                <span className="border rounded-full px-2.5 py-1 themed-transition" style={{ background: "var(--card)", borderColor: "var(--border)" }}>主題: {topic}</span>
-                <span className="border rounded-full px-2.5 py-1 themed-transition" style={{ background: "var(--card)", borderColor: "var(--border)" }}>句型: {currentPatternObj.name}</span>
-                <span className="border rounded-full px-2.5 py-1 themed-transition" style={{ background: "var(--card)", borderColor: "var(--border)" }}>抽象: {abstraction}%</span>
+                <span className="border rounded-full px-2.5 py-1 themed-transition" style={{ background: "var(--card)", borderColor: "var(--border)" }}>主題: {essayMeta.topic}</span>
+                <span className="border rounded-full px-2.5 py-1 themed-transition" style={{ background: "var(--card)", borderColor: "var(--border)" }}>句型: {essayMeta.pattern}</span>
+                <span className="border rounded-full px-2.5 py-1 themed-transition" style={{ background: "var(--card)", borderColor: "var(--border)" }}>抽象: {essayMeta.abstraction}%</span>
                 <span className="border rounded-full px-2.5 py-1 themed-transition" style={{ background: "var(--card)", borderColor: "var(--border)" }}>字數: {essay.replace(/\s/g,"").length}</span>
               </div>
             </div>
