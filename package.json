@@ -18,8 +18,9 @@
   ],
   "license": "MIT",
   "scripts": {
-    "dev": "vite --open",
-    "build": "vite build",
+    "dev": "vite --open /index.src.html",
+    "typecheck": "tsc",
+    "build": "tsc && vite build",
     "preview": "vite preview",
     "deploy": "gh-pages -d ."
   },

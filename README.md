@@ -32,15 +32,29 @@ Live Demo: https://rita112025-cpu.github.io/boyangti-generator/
 
 ```
 boyangti-generator/
-├── index.html         # 打包後的單檔網頁（GitHub Pages 直接使用）
+├── index.html         # 打包後的單檔網頁（GitHub Pages 直接使用，勿手動編輯）
+├── index.src.html     # Vite 入口頁面（開發用）
+├── main.tsx           # React 掛載點
 ├── App.tsx            # 主程式原始碼（React）
 ├── index.css          # 樣式（Tailwind 與主題變數）
+├── vite.config.ts     # 打包設定（含單檔內嵌外掛）
+├── tailwind.config.js
+├── postcss.config.js
+├── tsconfig.json
 ├── package.json
 ├── package-lock.json
 └── README.md
 ```
 
-`index.html` 是由 `App.tsx` 與 `index.css` 以 Vite 打包並內嵌成單檔；打包設定目前尚未放進 repo。
+### 🛠️ 開發與打包
+
+```bash
+npm install
+npm run dev        # 開發伺服器（開啟 index.src.html）
+npm run build      # 型別檢查後打包，覆寫根目錄的 index.html
+```
+
+`npm run build` 會把 JS 與 CSS 內嵌成單一個 `index.html` 並輸出到 repo 根目錄；GitHub Pages 直接讀取 `main` 分支根目錄，所以改完原始碼後要重新打包並把 `index.html` 一起提交，網站才會更新。打包時出現的 `build.outDir must not be the same directory of root` 警告是預期的（輸出只有 `index.html` 一個檔案）。
 
 ### 🔧 句型公式
 
